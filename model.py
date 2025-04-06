@@ -43,9 +43,8 @@ def search_faiss_index(question, index, chunks, k=3):
     distances, indices = index.search(np.array(question_embedding), k)
     return [chunks[i] for i in indices[0]]
 
-# Function to generate answer using GPT-3.5
-def ask_gpt(question, relevant_chunks):
-    """Asks OpenAI GPT-3.5 Turbo to answer using retrieved context"""
+def ask_deepseek(question, relevant_chunks):
+    """Uses DeepSeek model from DeepInfra to answer based on video transcript"""
     
     prompt = f"""
     You are an AI assistant. Answer the following question **only** using the provided transcript context.
@@ -58,9 +57,22 @@ def ask_gpt(question, relevant_chunks):
     If the answer is not in the context, say: "Sorry, out of syllabus."
     """
 
-    response = openai_client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[{"role": "user", "content": prompt}]
-    )
+    url = "https://api.deepinfra.com/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {DEEPINFRA_API_KEY}",
+        "Content-Type": "application/json"
+    }
 
-    return response.choices[0].message.content
+    data = {
+        "model": "deepseek-ai/deepseek-llm-7b-chat",  # or "openchat/openchat-3.5-1210"
+        "messages": [
+            {"role": "user", "content": prompt}
+        ]
+    }
+
+    response = requests.post(url, headers=headers, json=data)
+    
+    if response.status_code == 200:
+        return response.json()["choices"][0]["message"]["content"]
+    else:
+        return f"Error: {response.text}"
