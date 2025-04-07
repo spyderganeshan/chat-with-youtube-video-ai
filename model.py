@@ -2,10 +2,17 @@ from youtube_transcript_api import YouTubeTranscriptApi
 from sentence_transformers import SentenceTransformer
 import faiss
 import numpy as np
-import openai
+import requests
+from openai import OpenAI
+import os
+from dotenv import load_dotenv
+load_dotenv()
+API_KEY = os.getenv("API_KEY")
 # set initial api key
-API_KEY=""
-openai_client = openai.OpenAI(api_key=API_KEY)
+client = OpenAI(
+    base_url="https://openrouter.ai/api/v1",
+    api_key=os.getenv("API_KEY"),
+)
 # load embedding model
 embed_model = SentenceTransformer('all-MiniLM-L6-v2')
 
@@ -44,35 +51,38 @@ def search_faiss_index(question, index, chunks, k=3):
     return [chunks[i] for i in indices[0]]
 
 def ask_deepseek(question, relevant_chunks):
-    """Uses DeepSeek model from DeepInfra to answer based on video transcript"""
-    
-    prompt = f"""
-    You are an AI assistant. Answer the following question **only** using the provided transcript context.
+    """Uses DeepSeek model via OpenRouter to answer based on video transcript"""
+    try:
+        # Prepare the context
+        context = ' '.join(relevant_chunks)
+        
+        prompt = f"""
+        You are an AI assistant. Answer the following question **only** using the provided transcript context.
 
-    Context:
-    {' '.join(relevant_chunks)}
+        Context:
+        {context}
 
-    Question: {question}
+        Question: {question}
 
-    If the answer is not in the context, say: "Sorry, out of syllabus."
-    """
+        If the answer is not in the context, say: "Sorry, I couldn't find the answer in the video transcript."
+        """
 
-    url = "https://api.deepinfra.com/v1/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {DEEPINFRA_API_KEY}",
-        "Content-Type": "application/json"
-    }
+        # Make the API call
+        completion = client.chat.completions.create(
+            extra_headers={
+                "HTTP-Referer": "http://localhost",
+                "X-Title": "YouTube QA App",
+            },
+            model="deepseek/deepseek-v3-base:free",  # Using the documented model ID
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant that answers questions based on YouTube video transcripts."},
+                {"role": "user", "content": prompt}
+            ]
+        )
 
-    data = {
-        "model": "deepseek-ai/deepseek-llm-7b-chat",  # or "openchat/openchat-3.5-1210"
-        "messages": [
-            {"role": "user", "content": prompt}
-        ]
-    }
-
-    response = requests.post(url, headers=headers, json=data)
-    
-    if response.status_code == 200:
-        return response.json()["choices"][0]["message"]["content"]
-    else:
-        return f"Error: {response.text}"
+        # Extract and return the response
+        return completion.choices[0].message.content
+        
+    except Exception as e:
+        print(f"Error details: {str(e)}")  # Print full error for debugging
+        return f"Sorry, I encountered an error while processing your request. Please try again later."

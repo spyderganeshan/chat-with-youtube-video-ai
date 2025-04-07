@@ -1,5 +1,5 @@
 import streamlit as st
-from model import get_transcript,get_chunk_text,create_faiss_index,search_faiss_index,ask_gpt
+from model import get_transcript,get_chunk_text,create_faiss_index,search_faiss_index,ask_deepseek
 
 
 # Streamlit UI
@@ -31,6 +31,6 @@ if "ready" in st.session_state:
         index = st.session_state["index"]
         chunks = st.session_state["chunks"]
         relevant_chunks = search_faiss_index(question, index, chunks)
-        answer = ask_gpt(question, relevant_chunks)
+        answer = ask_deepseek(question, relevant_chunks)
         st.write("### Answer:")
         st.write(answer)
